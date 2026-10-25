@@ -8,6 +8,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+/// Read checkout identity when recording invocation metadata; not a proof check.
 fn revision(path: &Path) -> Option<String> {
     let output = Command::new("git")
         .args(["rev-parse", "HEAD"])
@@ -47,6 +48,10 @@ struct Record {
     command: Vec<String>,
 }
 
+/// Capture one Flux attempt during agent-driven stage 0.
+/// Save the invocation, run the supplied command, then save its raw output and
+/// exit status. Claude reads the logs to decide the next step; this function
+/// does not interpret diagnostics or decide whether verification succeeded.
 fn record(args: Record) -> Result<i32, Box<dyn std::error::Error>> {
     let repo = fs::canonicalize(&args.repo)?;
     let task = &args.output;

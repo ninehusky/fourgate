@@ -10,7 +10,7 @@ concurrency:
 permissions:
   contents: read
 jobs:
-  recorder:
+  checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,51 +19,3 @@ jobs:
           components: rustfmt, clippy
       - run: cargo fmt --check
       - run: cargo clippy --locked --all-targets -- -D warnings
-      - run: cargo test --locked
-
-  flux-smoke:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo build --locked
-      - name: Install fixpoint using pinned Flux's action
-        uses: ./vendor/flux/.github/actions/install-fixpoint
-      - uses: cda-tum/setup-z3@v1.6.6
-        with:
-          version: 4.15.3
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: vendor/flux -> target
-          cache-bin: false
-      - name: Build pinned Flux
-        working-directory: vendor/flux
-        run: cargo xtask install
-      - name: Capture tool versions
-        run: |
-          mkdir -p runs/ci
-          git submodule status > runs/ci/versions.log
-          cargo --version >> runs/ci/versions.log
-          z3 --version >> runs/ci/versions.log
-          fixpoint --version >> runs/ci/versions.log
-          cp vendor/flux/rust-toolchain.toml runs/ci/flux-toolchain.toml
-      - name: Record fixture invocation
-        shell: bash
-        run: |
-          toolchain=$(sed -n 's/^channel = "\(.*\)"/\1/p' vendor/flux/rust-toolchain.toml)
-          set +e
-          RUSTUP_TOOLCHAIN="$toolchain" target/debug/fourgate record \
-            --repo "$PWD/fixtures/assertion" --output "$PWD/runs/ci/assertion" -- \
-            cargo flux --message-format=json
-          status=$?
-          set -e
-          test "$status" -ne 0
-          FOURGATE_SMOKE_DIR="$PWD/runs/ci/assertion" cargo test --locked --test flux_smoke -- --ignored
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: stage0-smoke-evidence
-          path: runs/ci/

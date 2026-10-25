@@ -46,8 +46,8 @@ Done: the root invocation demonstrably reaches pinned Flux, and another agent
 can rerun it from the saved command and prerequisites. Refinement errors or ICEs
 do not by themselves fail stage 0. Setup failures that prevent Flux from running
 are blockers; report them without claiming completion. A zero exit alone is not
-proof Flux ran. The CI fixture's specific-diagnostic check tests installation and
-capture, not coverage of a real target.
+proof Flux ran. CI checks formatting and Clippy only; it does not evaluate this
+agent workflow.
 
 Do not fix all errors, add trust attributes, or claim per-body coverage. Later
 proof work can introduce new ICEs and require revisiting earlier exemptions.
