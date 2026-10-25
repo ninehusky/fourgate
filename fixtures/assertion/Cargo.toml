@@ -1,0 +1,10 @@
+[package]
+name = "fourgate-assertion-fixture"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata.flux]
+enabled = true
+
+[workspace]

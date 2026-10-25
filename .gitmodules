@@ -1,0 +1,3 @@
+[submodule "vendor/flux"]
+	path = vendor/flux
+	url = https://github.com/flux-rs/flux.git
