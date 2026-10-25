@@ -21,7 +21,7 @@ fn revision(path: &Path) -> Option<String> {
         .then(|| String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }
 
-/// Capture command invocations and raw output. Claude drives stage 0 itself.
+/// Capture command invocations and raw output. Claude drives the pipeline.
 #[derive(Parser)]
 #[command(version, about)]
 struct Cli {
@@ -48,7 +48,7 @@ struct Record {
     command: Vec<String>,
 }
 
-/// Capture one Flux attempt during agent-driven stage 0.
+/// Capture one Flux run during setup or later coverage and proof work.
 /// Save the invocation, run the supplied command, then save its raw output and
 /// exit status. Claude reads the logs to decide the next step; this function
 /// does not interpret diagnostics or decide whether verification succeeded.

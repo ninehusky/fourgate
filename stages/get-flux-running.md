@@ -1,7 +1,7 @@
-# Stage 0: establish invocation
+# Get Flux running
 
 Input: a target repository path.
-Output: a repeatable Flux invocation, raw compiler logs, and Claude's native
+Output: a repeatable command to run Flux, raw compiler logs, and Claude's native
 session transcript. Claude decides what to investigate; there is no orchestrator.
 
 1. Read the target's instructions and Cargo/toolchain configuration. Start at the
@@ -42,9 +42,9 @@ cleanup. Do not sweep unrelated sessions or replace JSONL with a rendered export
 This is an archival step, not a new transcript parser or automatic fourgate hook.
 See [Claude session documentation](https://code.claude.com/docs/en/sessions#where-transcripts-are-stored).
 
-Done: the root invocation demonstrably reaches pinned Flux, and another agent
+Done: pinned Flux runs on the codebase from the repository root, and another agent
 can rerun it from the saved command and prerequisites. Refinement errors or ICEs
-do not by themselves fail stage 0. Setup failures that prevent Flux from running
+do not by themselves block this setup step. Setup failures that prevent Flux from running
 are blockers; report them without claiming completion. A zero exit alone is not
 proof Flux ran. CI checks formatting and Clippy only; it does not evaluate this
 agent workflow.

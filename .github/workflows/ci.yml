@@ -1,11 +1,11 @@
-name: stage0
+name: checks
 on:
   pull_request:
   push:
     branches: [main]
   workflow_dispatch:
 concurrency:
-  group: stage0-${{ github.ref }}
+  group: checks-${{ github.ref }}
   cancel-in-progress: true
 permissions:
   contents: read
