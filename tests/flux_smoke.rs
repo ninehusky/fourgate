@@ -1,10 +1,13 @@
 //! CI fixture validation, not a per-body coverage check.
 use serde_json::Value;
-use std::{fs, path::Path};
+use std::{fs, path::PathBuf};
 
 type Error = Box<dyn std::error::Error>;
 
-pub fn check(directory: &Path) -> Result<(), Error> {
+#[test]
+#[ignore = "requires captured output from pinned Flux; CI sets FOURGATE_SMOKE_DIR"]
+fn pinned_flux_assertion() -> Result<(), Error> {
+    let directory = PathBuf::from(std::env::var("FOURGATE_SMOKE_DIR")?);
     let logs = [
         fs::read_to_string(directory.join("stdout.log"))?,
         fs::read_to_string(directory.join("stderr.log"))?,

@@ -60,7 +60,7 @@ jobs:
           status=$?
           set -e
           test "$status" -ne 0
-          target/debug/fourgate check-smoke runs/ci/assertion
+          FOURGATE_SMOKE_DIR="$PWD/runs/ci/assertion" cargo test --locked --test flux_smoke -- --ignored
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -1,5 +1,3 @@
-mod smoke;
-
 use clap::{Args, Parser, Subcommand};
 use serde_json::json;
 use std::{
@@ -22,7 +20,7 @@ fn revision(path: &Path) -> Option<String> {
         .then(|| String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }
 
-/// Capture commands and check the stage 0 fixture. Claude drives the stage itself.
+/// Capture command invocations and raw output. Claude drives stage 0 itself.
 #[derive(Parser)]
 #[command(version, about)]
 struct Cli {
@@ -34,8 +32,6 @@ struct Cli {
 enum Action {
     /// Run a command and save its invocation, raw output, and result.
     Record(Record),
-    /// CI-only: check the fixture's specific Flux assertion diagnostic.
-    CheckSmoke { directory: PathBuf },
 }
 
 #[derive(Args)]
@@ -103,7 +99,6 @@ fn record(args: Record) -> Result<i32, Box<dyn std::error::Error>> {
 fn main() {
     let result = match Cli::parse().command {
         Action::Record(args) => record(args),
-        Action::CheckSmoke { directory } => smoke::check(&directory).map(|()| 0),
     };
     match result {
         Ok(code) => std::process::exit(code),

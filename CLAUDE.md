@@ -2,7 +2,7 @@
 
 Use one agent. Start with stages/establish-invocation.md when given a target repo.
 Ask for a target path if none is supplied. Claude drives stage 0; the fourgate
-CLI only captures commands and checks the CI fixture. It does not launch agents.
+CLI only captures commands. It does not launch agents.
 
 Write short. Separate observations verified by running commands from inferences.
 Write remotely only to ninehusky/*; never push or comment upstream. Print and
