@@ -55,12 +55,12 @@ jobs:
           toolchain=$(sed -n 's/^channel = "\(.*\)"/\1/p' vendor/flux/rust-toolchain.toml)
           set +e
           RUSTUP_TOOLCHAIN="$toolchain" target/debug/fourgate record \
-            "$PWD/fixtures/assertion" "$PWD/runs/ci/assertion" -- \
+            --repo "$PWD/fixtures/assertion" --output "$PWD/runs/ci/assertion" -- \
             cargo flux --message-format=json
           status=$?
           set -e
           test "$status" -ne 0
-          python3 scripts/check-smoke.py runs/ci/assertion
+          target/debug/fourgate check-smoke runs/ci/assertion
       - uses: actions/upload-artifact@v4
         if: always()
         with:

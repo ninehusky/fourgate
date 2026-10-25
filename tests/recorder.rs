@@ -20,7 +20,9 @@ fn records_failure_and_refuses_overwrite() {
         Command::new(env!("CARGO_BIN_EXE_fourgate"))
             .args([
                 "record",
+                "--repo",
                 env!("CARGO_MANIFEST_DIR"),
+                "--output",
                 task.to_str().unwrap(),
                 "--",
                 "sh",
@@ -42,12 +44,10 @@ fn records_failure_and_refuses_overwrite() {
         fs::read_to_string(task.join("stderr.log")).unwrap(),
         "failure\n"
     );
-    let events = fs::read_to_string(task.join("events.jsonl")).unwrap();
-    let events: Vec<serde_json::Value> = events
-        .lines()
-        .map(|l| serde_json::from_str(l).unwrap())
-        .collect();
-    assert_eq!(events[1]["exit_code"], 7);
+    let result: serde_json::Value =
+        serde_json::from_slice(&fs::read(task.join("result.json")).unwrap()).unwrap();
+    assert_eq!(result["exit_code"], 7);
+    assert!(!task.join("events.jsonl").exists());
     assert!(!run().status.success());
     assert_eq!(
         fs::read_to_string(task.join("stdout.log")).unwrap(),
@@ -71,7 +71,9 @@ fn records_launch_error() {
     let result = Command::new(env!("CARGO_BIN_EXE_fourgate"))
         .args([
             "record",
+            "--repo",
             env!("CARGO_MANIFEST_DIR"),
+            "--output",
             task.to_str().unwrap(),
             "--",
             "/nonexistent-fourgate-test-command",
@@ -79,9 +81,9 @@ fn records_launch_error() {
         .output()
         .unwrap();
     assert!(!result.status.success());
-    let events = fs::read_to_string(task.join("events.jsonl")).unwrap();
-    let finish: serde_json::Value = serde_json::from_str(events.lines().last().unwrap()).unwrap();
-    assert!(finish["exit_code"].is_null());
-    assert!(finish["launch_error"].is_string());
+    let result: serde_json::Value =
+        serde_json::from_slice(&fs::read(task.join("result.json")).unwrap()).unwrap();
+    assert!(result["exit_code"].is_null());
+    assert!(result["launch_error"].is_string());
     fs::remove_dir_all(root).unwrap();
 }
