@@ -1,3 +1,3 @@
 # fourgate
 
-Push-button evaluation for (Flux <-> agent)-driven panic elimination.
+just four gate every game and you will win at least 50% of your protoss vs. protosses
