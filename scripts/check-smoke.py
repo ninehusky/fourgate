@@ -22,7 +22,7 @@ for log in logs:
         code = diagnostic.get("code") or {}
         if code.get("code") != "E0999":
             continue
-        if "assertion might fail" not in diagnostic.get("message", "").lower():
+        if "refinement type error" not in diagnostic.get("message", "").lower():
             continue
         if any(span.get("is_primary") and span.get("file_name", "").endswith("src/lib.rs")
                and span.get("line_start") == 2 for span in diagnostic.get("spans", [])):

@@ -1,3 +1,3 @@
 pub fn expected_failure() {
-    assert!(false); // CI must identify this assertion's diagnostic.
+    flux_rs::assert(false); // CI must identify this assertion's diagnostic.
 }

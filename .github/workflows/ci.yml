@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+concurrency:
+  group: stage0-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:

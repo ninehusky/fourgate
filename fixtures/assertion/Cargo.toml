@@ -7,4 +7,7 @@ publish = false
 [package.metadata.flux]
 enabled = true
 
+[dependencies]
+flux-rs = { path = "../../vendor/flux/lib/flux-rs" }
+
 [workspace]
