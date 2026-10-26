@@ -2,14 +2,16 @@
 
 Use one agent. Start with stages/get-flux-running.md when given a target repo.
 Ask for a target path if none is supplied. Claude drives the pipeline; the
-fourgate CLI only captures commands. It does not launch agents.
+fourgate CLI captures commands and runs deterministic binary analysis. It does
+not launch agents. See stages/measure-panics.md for the measurement stage.
 
 Pipeline:
 1. Get Flux running — set up the checker on the codebase and save a repeatable command.
 2. Check coverage — confirm every body/closure is checked or explicitly exempted.
 3. Prove panic freedom — work through the proof obligations.
 
-Only the first step is implemented here. Flux repair can be needed throughout;
+Only the first proof step is implemented here; binary measurement is separate.
+Flux repair can be needed throughout;
 these steps are not a one-time pass through the codebase.
 
 Write short. Separate observations verified by running commands from inferences.

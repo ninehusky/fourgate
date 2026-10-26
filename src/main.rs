@@ -1,4 +1,5 @@
 use clap::{Args, Parser, Subcommand};
+mod measure_panics;
 use serde_json::json;
 use std::{
     env, fs,
@@ -33,6 +34,8 @@ struct Cli {
 enum Action {
     /// Run a command and save its invocation, raw output, and result.
     Record(Record),
+    /// Inventory recognized panic transfers in an ELF binary's assembly.
+    MeasurePanics(measure_panics::MeasurePanics),
 }
 
 #[derive(Args)]
@@ -48,7 +51,7 @@ struct Record {
     command: Vec<String>,
 }
 
-/// Capture one Flux run during setup or later coverage and proof work.
+/// Capture a build, Flux run, or other command without interpreting its output.
 /// Save the invocation, run the supplied command, then save its raw output and
 /// exit status. Claude reads the logs to decide the next step; this function
 /// does not interpret diagnostics or decide whether verification succeeded.
@@ -104,6 +107,7 @@ fn record(args: Record) -> Result<i32, Box<dyn std::error::Error>> {
 fn main() {
     let result = match Cli::parse().command {
         Action::Record(args) => record(args),
+        Action::MeasurePanics(args) => measure_panics::run(args).map(|()| 0),
     };
     match result {
         Ok(code) => std::process::exit(code),
