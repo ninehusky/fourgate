@@ -1,0 +1,21 @@
+{
+  "sites": [
+    {
+      "enclosing_function": {
+        "name": "before"
+      },
+      "kind": "arithmetic",
+      "target_symbol": "core::panicking::panic_const::panic_const_div_by_zero",
+      "attribution": {
+        "status": "located",
+        "frames": [
+          {
+            "function": "before",
+            "file": "arithmetic.rs",
+            "line": 8
+          }
+        ]
+      }
+    }
+  ]
+}

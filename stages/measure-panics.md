@@ -51,12 +51,13 @@ identifies the binary but does not reconstruct its build configuration.
 
 ## Verification
 
-The executable fixture deliberately retains known bounds, unwrap, divide,
-copy-from-slice, and explicit-panic sites. On Linux with LLVM installed:
+Five small [Rust/expected-JSON pairs](../tests/fixtures/panics/README.md) document
+bounds, unwrap, divide, slice-copy, and explicit-panic sites. Each includes a
+`before` with a panic and an `after` without one. On Linux with LLVM installed:
 
 ```sh
-cargo test --locked --test measure_panics -- --ignored
+cargo test --locked --test measure_panics
 ```
 
-The test compiles real optimized machine code, checks each expected panic family
-and source function, verifies assembly references, and checks overwrite refusal.
+The test compiles real optimized machine code and compares the fixture-owned
+sites with the adjacent expected JSON. Missing or unexpected sites fail CI.

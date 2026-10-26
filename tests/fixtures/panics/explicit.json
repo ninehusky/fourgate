@@ -1,0 +1,21 @@
+{
+  "sites": [
+    {
+      "enclosing_function": {
+        "name": "before"
+      },
+      "kind": "panic_message",
+      "target_symbol": "core::panicking::panic_fmt",
+      "attribution": {
+        "status": "located",
+        "frames": [
+          {
+            "function": "before",
+            "file": "explicit.rs",
+            "line": 9
+          }
+        ]
+      }
+    }
+  ]
+}

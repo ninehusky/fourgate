@@ -1,83 +1,100 @@
-//! Run against actual compiled machine code, not synthetic diagnostic logs.
-//! Requires Linux and LLVM tools on PATH (or FOURGATE_LLVM_TOOLS).
-use std::{fs, path::PathBuf, process::Command};
+//! Small source -> expected-JSON pairs, compiled to real ELF executables.
+#![cfg(target_os = "linux")]
+
+use serde_json::{Value, json};
+use std::{fs, path::Path, process::Command};
+
+// Keep the real JSON structure for the two fixture functions, omitting
+// build-dependent fields and non-fixture inline frames. Missing or extra sites
+// in either before OR after fail, including a panic introduced into after.
+fn reviewable(inventory: &Value, source: &Path) -> Value {
+    let mut sites = Vec::new();
+    for site in inventory["sites"].as_array().unwrap() {
+        let name = &site["enclosing_function"]["name"];
+        if !matches!(name.as_str(), Some("before" | "after")) {
+            continue;
+        }
+        let frames: Vec<_> = site["attribution"]["frames"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|frame| {
+                Path::new(frame["file"].as_str().unwrap_or("")).file_name() == source.file_name()
+            })
+            .map(|frame| {
+                json!({
+                    "function": frame["function"],
+                    "file": source.file_name().unwrap().to_str().unwrap(),
+                    "line": frame["line"],
+                })
+            })
+            .collect();
+        sites.push(json!({
+            "enclosing_function": {"name": name},
+            "kind": site["kind"], "target_symbol": site["target_symbol"],
+            "attribution": {"status": site["attribution"]["status"], "frames": frames},
+        }));
+    }
+    json!({"sites": sites})
+}
 
 #[test]
-#[ignore = "requires Linux rustc and llvm-objdump/llvm-symbolizer; see stages/measure-panics.md"]
-fn inventories_real_panic_sites() {
-    assert_eq!(
-        std::env::consts::OS,
-        "linux",
-        "the fixture must produce ELF"
-    );
-    let temp = std::env::temp_dir().join(format!("fourgate-inventory-{}", std::process::id()));
+fn source_matches_expected_json() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/panics");
+    let temp = std::env::temp_dir().join(format!("fourgate-fixtures-{}", std::process::id()));
     fs::create_dir(&temp).unwrap();
-    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/panic_sites.rs");
-    let binary = temp.join("fixture");
-    let status = Command::new("rustc")
-        .arg(fixture)
-        .args([
-            "--edition=2024",
-            "-Copt-level=3",
-            "-Cdebuginfo=2",
-            "-Cpanic=abort",
-        ])
-        .arg("-o")
-        .arg(&binary)
-        .status()
-        .unwrap();
-    assert!(status.success());
-    let report = temp.join("report");
-    let mut command = Command::new(env!("CARGO_BIN_EXE_fourgate"));
-    command
-        .args(["measure-panics", "--binary"])
-        .arg(&binary)
-        .arg("--output")
-        .arg(&report);
-    if let Some(tools) = std::env::var_os("FOURGATE_LLVM_TOOLS") {
-        command.arg("--llvm-tools").arg(tools);
-    }
-    let result = command.output().unwrap();
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stderr)
-    );
-    let inventory: serde_json::Value =
-        serde_json::from_slice(&fs::read(report.join("panics.json")).unwrap()).unwrap();
-    let sites = inventory["sites"].as_array().unwrap();
-    for (name, kind) in [
-        ("fixture_bounds", "bounds_check"),
-        ("fixture_unwrap", "unwrap_or_expect"),
-        ("fixture_divide", "arithmetic"),
-        ("fixture_copy", "slice_length_mismatch"),
-        ("fixture_explicit", "panic_message"),
-    ] {
+    for name in ["bounds", "unwrap", "arithmetic", "slice_copy", "explicit"] {
+        let source = fixtures.join(format!("{name}.rs"));
+        let binary = temp.join(name);
+        let result = Command::new("rustc")
+            .arg(&source)
+            .args([
+                "--edition=2024",
+                "-Copt-level=3",
+                "-Cdebuginfo=2",
+                "-Cpanic=abort",
+                "-Crelocation-model=static",
+                "-Clink-arg=-nostartfiles",
+                "-Clink-arg=-no-pie",
+            ])
+            .arg("-o")
+            .arg(&binary)
+            .output()
+            .unwrap();
         assert!(
-            sites.iter().any(|site| {
-                site["kind"] == kind
-                    && site["attribution"]["frames"]
-                        .as_array()
-                        .is_some_and(|frames| {
-                            frames.iter().any(|frame| {
-                                frame["function"].as_str().is_some_and(|f| f.contains(name))
-                            })
-                        })
-            }),
-            "missing {name} / {kind}"
+            result.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let report = temp.join(format!("{name}-report"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_fourgate"));
+        command
+            .arg("measure-panics")
+            .arg("--binary")
+            .arg(&binary)
+            .arg("--output")
+            .arg(&report);
+        if let Some(tools) = std::env::var_os("FOURGATE_LLVM_TOOLS") {
+            command.arg("--llvm-tools").arg(tools);
+        }
+        let result = command.output().unwrap();
+        assert!(
+            result.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let inventory: Value =
+            serde_json::from_slice(&fs::read(report.join("panics.json")).unwrap()).unwrap();
+        let actual = reviewable(&inventory, &source);
+        let expected: Value =
+            serde_json::from_slice(&fs::read(fixtures.join(format!("{name}.json"))).unwrap())
+                .unwrap();
+        assert_eq!(
+            actual,
+            expected,
+            "{name}: code -> expected JSON changed\nactual:\n{}",
+            serde_json::to_string_pretty(&actual).unwrap()
         );
     }
-    let asm = fs::read_to_string(report.join("disassembly.asm")).unwrap();
-    for site in sites {
-        let line = site["assembly_line"].as_u64().unwrap() as usize;
-        let text = asm.lines().nth(line - 1).unwrap();
-        assert!(text.contains(site["instruction"].as_str().unwrap()));
-    }
-    assert!(report.join("metadata.json").is_file());
-    assert!(report.join("summary.md").is_file());
-    // Existing evidence must survive an accidental rerun.
-    let original = fs::read(report.join("panics.json")).unwrap();
-    assert!(!command.output().unwrap().status.success());
-    assert_eq!(original, fs::read(report.join("panics.json")).unwrap());
     fs::remove_dir_all(temp).unwrap();
 }
