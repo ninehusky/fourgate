@@ -44,12 +44,10 @@ measure byte savings or transitively panic-free caller regions.
 Counts describe retained machine code, not runtime frequency or reachability
 from a workload.
 
-## Firecracker benchmark
+## Build provenance
 
-Use the shipped `firecracker` executable target, not an artificial library shim.
-See [the pinned build recipe](../benchmarks/firecracker/README.md). Preserve build
-commands and logs with `fourgate record`; analyzer metadata identifies the binary
-but does not reconstruct its build configuration.
+Preserve build commands and logs with `fourgate record`; analyzer metadata
+identifies the binary but does not reconstruct its build configuration.
 
 ## Verification
 
@@ -62,4 +60,3 @@ cargo test --locked --test measure_panics -- --ignored
 
 The test compiles real optimized machine code, checks each expected panic family
 and source function, verifies assembly references, and checks overwrite refusal.
-It does not substitute for the Firecracker benchmark.
