@@ -1,0 +1,21 @@
+{
+  "sites": [
+    {
+      "enclosing_function": {
+        "name": "before"
+      },
+      "kind": "unwrap_or_expect",
+      "target_symbol": "core::option::unwrap_failed",
+      "attribution": {
+        "status": "located",
+        "frames": [
+          {
+            "function": "before",
+            "file": "unwrap.rs",
+            "line": 8
+          }
+        ]
+      }
+    }
+  ]
+}

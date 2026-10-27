@@ -1,0 +1,21 @@
+{
+  "sites": [
+    {
+      "enclosing_function": {
+        "name": "before"
+      },
+      "kind": "bounds_check",
+      "target_symbol": "core::panicking::panic_bounds_check",
+      "attribution": {
+        "status": "located",
+        "frames": [
+          {
+            "function": "before",
+            "file": "bounds.rs",
+            "line": 8
+          }
+        ]
+      }
+    }
+  ]
+}

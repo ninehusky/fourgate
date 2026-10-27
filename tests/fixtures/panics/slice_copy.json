@@ -1,0 +1,21 @@
+{
+  "sites": [
+    {
+      "enclosing_function": {
+        "name": "before"
+      },
+      "kind": "slice_length_mismatch",
+      "target_symbol": "core::slice::copy_from_slice_impl::len_mismatch_fail",
+      "attribution": {
+        "status": "located",
+        "frames": [
+          {
+            "function": "before",
+            "file": "slice_copy.rs",
+            "line": 8
+          }
+        ]
+      }
+    }
+  ]
+}
