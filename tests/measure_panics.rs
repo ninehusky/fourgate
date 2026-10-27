@@ -4,10 +4,10 @@
 use serde_json::{Value, json};
 use std::{fs, path::Path, process::Command};
 
-// Keep the real JSON structure for the two fixture functions, omitting
-// build-dependent fields and non-fixture inline frames. Missing or extra sites
-// in either before OR after fail, including a panic introduced into after.
-fn reviewable(inventory: &Value, source: &Path) -> Value {
+/// Extract the fixture-owned portion of panics.json for comparison with the
+/// adjacent expected JSON. Keep before/after sites and their fixture source
+/// frames; omit runtime sites, addresses, instructions, and other unstable data.
+fn fixture_snapshot(inventory: &Value, source: &Path) -> Value {
     let mut sites = Vec::new();
     for site in inventory["sites"].as_array().unwrap() {
         let name = &site["enclosing_function"]["name"];
@@ -85,7 +85,7 @@ fn source_matches_expected_json() {
         );
         let inventory: Value =
             serde_json::from_slice(&fs::read(report.join("panics.json")).unwrap()).unwrap();
-        let actual = reviewable(&inventory, &source);
+        let actual = fixture_snapshot(&inventory, &source);
         let expected: Value =
             serde_json::from_slice(&fs::read(fixtures.join(format!("{name}.json"))).unwrap())
                 .unwrap();

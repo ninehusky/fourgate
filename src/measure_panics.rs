@@ -1,7 +1,9 @@
 //! Deterministic inventory of recognized binary-level panic transfers.
 //!
 //! LLVM decodes instructions and resolves DWARF. Rust owns classification and
-//! the output schema. This is an inventory, never a proof of panic freedom.
+//! the output schema. Sites count direct transfers into recognized panic entry
+//! points from outside recognized panic machinery. An empty sites list does not
+//! imply absent machinery; see recognized_sinks and unresolved indirect transfers.
 
 use clap::Args;
 use object::{Object, ObjectSection, ObjectSymbol};
@@ -35,11 +37,29 @@ pub struct MeasurePanics {
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum PanicKind {
+    // Compiler checks: mirror MIR AssertKind, splitting Overflow by BinOp.
     BoundsCheck,
+    OverflowAdd,
+    OverflowSub,
+    OverflowMul,
+    OverflowDiv,
+    OverflowRem,
+    OverflowNeg,
+    OverflowShr,
+    OverflowShl,
+    DivisionByZero,
+    RemainderByZero,
+    ResumedAfterReturn,
+    ResumedAfterPanic,
+    ResumedAfterDrop,
+    MisalignedPointerDereference,
+    NullPointerDereference,
+    InvalidEnumConstruction,
+    UnknownCompilerAssert,
+    // Library helpers and generic panic/runtime entry points are not MIR asserts.
     SliceRange,
     SliceLengthMismatch,
     UnwrapOrExpect,
-    Arithmetic,
     BorrowViolation,
     Assertion,
     PanicMessage,
@@ -175,10 +195,50 @@ struct Metadata {
     symbolizer: ToolInvocation,
 }
 
+/// Mirrors Rust 1.97's AssertKind::panic_function and core panic lang items:
+/// https://github.com/rust-lang/rust/blob/1.97.0/compiler/rustc_middle/src/mir/terminator.rs
+fn compiler_assert(name: &str) -> Option<PanicKind> {
+    use PanicKind::*;
+    match name {
+        "core::panicking::panic_bounds_check" => return Some(BoundsCheck),
+        "core::panicking::panic_misaligned_pointer_dereference" => {
+            return Some(MisalignedPointerDereference);
+        }
+        "core::panicking::panic_null_pointer_dereference" => return Some(NullPointerDereference),
+        "core::panicking::panic_invalid_enum_construction" => return Some(InvalidEnumConstruction),
+        _ => {}
+    }
+    let check = name.strip_prefix("core::panicking::panic_const::panic_const_")?;
+    Some(match check {
+        "add_overflow" => OverflowAdd,
+        "sub_overflow" => OverflowSub,
+        "mul_overflow" => OverflowMul,
+        "div_overflow" => OverflowDiv,
+        "rem_overflow" => OverflowRem,
+        "neg_overflow" => OverflowNeg,
+        "shr_overflow" => OverflowShr,
+        "shl_overflow" => OverflowShl,
+        "div_by_zero" => DivisionByZero,
+        "rem_by_zero" => RemainderByZero,
+        "coroutine_resumed" | "async_fn_resumed" | "async_gen_fn_resumed" | "gen_fn_none" => {
+            ResumedAfterReturn
+        }
+        "coroutine_resumed_panic"
+        | "async_fn_resumed_panic"
+        | "async_gen_fn_resumed_panic"
+        | "gen_fn_none_panic" => ResumedAfterPanic,
+        "coroutine_resumed_drop"
+        | "async_fn_resumed_drop"
+        | "async_gen_fn_resumed_drop"
+        | "gen_fn_none_drop" => ResumedAfterDrop,
+        _ => UnknownCompilerAssert,
+    })
+}
+
 fn classify(name: &str) -> Option<PanicKind> {
     use PanicKind::*;
-    if name.starts_with("core::panicking::panic_bounds_check") {
-        Some(BoundsCheck)
+    if let Some(kind) = compiler_assert(name) {
+        Some(kind)
     } else if name.starts_with("core::slice::index::slice_") && name.contains("fail")
         || name.starts_with("core::str::slice_error_fail")
     {
@@ -190,12 +250,6 @@ fn classify(name: &str) -> Option<PanicKind> {
         || name.starts_with("core::result::unwrap_failed")
     {
         Some(UnwrapOrExpect)
-    } else if name.starts_with("core::panicking::panic_const::")
-        && ["overflow", "zero", "shift"]
-            .iter()
-            .any(|s| name.contains(s))
-    {
-        Some(Arithmetic)
     } else if name.starts_with("core::cell::panic_already_") {
         Some(BorrowViolation)
     } else if name.starts_with("core::panicking::assert_failed") {
@@ -547,7 +601,7 @@ pub fn run(args: MeasurePanics) -> Result<()> {
         warnings.push("No embedded DWARF debug_info; source attribution may be unavailable.");
     }
     let inventory = Inventory {
-        schema_version: 3,
+        schema_version: 4,
         architecture,
         recognized_sinks,
         sites,
@@ -564,7 +618,7 @@ pub fn run(args: MeasurePanics) -> Result<()> {
     json(&output.join("panics.json"), &inventory)?;
     let metadata = Metadata {
         schema_version: 1,
-        classifier_version: 1,
+        classifier_version: 2,
         fourgate_version: env!("CARGO_PKG_VERSION"),
         binary,
         binary_sha256: format!("{:x}", Sha256::digest(&bytes)),
