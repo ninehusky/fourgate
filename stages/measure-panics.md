@@ -46,12 +46,15 @@ at one address count once. The same source expression can produce several sites
 after inlining, or none after optimization.
 
 This is a partial static inventory, not a proof of panic freedom. Indirect
-transfers are counted as unresolved. Unknown wrappers and fully inlined panic
+transfers are counted in `coverage.unresolved_indirect_transfers` and excluded
+from `sites`, even when a fixed GOT/relocation target could be resolved. This is
+deferred to [#9](https://github.com/ninehusky/fourgate/issues/9); general register
+analysis is outside this checkpoint. Unknown wrappers and fully inlined panic
 machinery can hide additional sites. `sites: []` means no caller-to-sink direct
 panic sites were counted, not that panic machinery is absent. `recognized_sinks`
 counts recognized panic entry points separately; it can be nonzero with no sites.
-Zero detected sites is therefore inconclusive. Crate
-attribution uses source paths, not Cargo package IDs. This checkpoint does not
+Zero detected sites is therefore inconclusive. Crate attribution uses source
+paths, not Cargo package IDs. This checkpoint does not
 measure byte savings or transitively panic-free caller regions.
 Counts describe retained machine code, not runtime frequency or reachability
 from a workload.
