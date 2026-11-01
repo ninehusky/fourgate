@@ -1,11 +1,15 @@
 //! Schema for `errors.json`, the error report for one recorded `fourgate flux` run.
 //!
-//! The intended parser reads `stdout.log` and `stderr.log` for diagnostics, ICEs,
+//! The parser reads `stdout.log` and `stderr.log` for diagnostics, ICEs,
 //! and panics, and `result.json` for the command's exit or launch failure. Errors
 //! retain references into those original files; warnings stay in the raw logs.
 //!
-//! This change defines the schema and example reports only. `fourgate flux`
-//! records commands today; parsing and automatic report generation follow separately.
+//! `fourgate flux` generates this report automatically after recording the command.
+//! Malformed diagnostics panic during extraction; the original files remain intact.
+
+#[path = "diagnostics/parser.rs"]
+mod parser;
+pub use parser::read_report;
 
 use serde::{Deserialize, Serialize};
 
@@ -79,7 +83,7 @@ pub struct Span {
 }
 
 /// A range in an original recording file, not in the generated error report.
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Evidence {
     pub file: EvidenceFile,
     /// One-based, inclusive lines in the original recording, before filtering.
@@ -87,7 +91,7 @@ pub struct Evidence {
     pub line_end: u32,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EvidenceFile {
     #[serde(rename = "stdout.log")]
     Stdout,

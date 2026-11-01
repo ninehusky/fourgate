@@ -1,4 +1,3 @@
-// Compile the draft schema without wiring it into the CLI yet.
 #[path = "../src/diagnostics.rs"]
 mod diagnostics;
 
@@ -6,8 +5,18 @@ use diagnostics::{ErrorKind, ErrorReport, EvidenceFile, IncompleteReason};
 use serde_json::Value;
 use std::{fs, path::Path};
 
-// This checks the hand-written report fixtures, without running Flux or parsing logs:
-// 1. Deserialize expected.json into the schema and verify its JSON round-trip.
+// A truncated diagnostic must stop extraction with a parser panic, rather than
+// produce a report that silently omits the damaged error.
+#[test]
+#[should_panic(expected = "invalid JSON at Stdout:1")]
+fn truncated_diagnostic_recording_panics() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/flux/malformed_json");
+    // The should_panic attribute checks both the failure and its log location.
+    diagnostics::read_report(&fixture).unwrap();
+}
+
+// Parse each saved recording without running Flux:
+// 1. Compare extracted errors with the hand-written expected.json and its schema.
 // 2. Check version and completeness metadata, plus one-based, ordered source spans.
 // 3. Ensure each evidence range fits inside its referenced recording file.
 // Evidence usually refers to stdout/stderr. For a command that never started,
@@ -16,6 +25,7 @@ use std::{fs, path::Path};
 fn reports_fit_schema_and_reference_existing_evidence() {
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/flux");
     for case in [
+        "success",
         "diagnostic",
         "crashes",
         "real_crashes",
@@ -27,7 +37,9 @@ fn reports_fit_schema_and_reference_existing_evidence() {
         let expected: Value =
             serde_json::from_slice(&fs::read(dir.join("expected.json")).unwrap()).unwrap();
         let report: ErrorReport = serde_json::from_value(expected.clone()).unwrap();
-        // 2. Serializing the schema must preserve every expected JSON field.
+        // 2. Extraction must recover exactly the errors and evidence in this fixture.
+        assert_eq!(diagnostics::read_report(&dir).unwrap(), report, "{case}");
+        // 3. Serializing the schema must preserve every expected JSON field.
         assert_eq!(serde_json::to_value(&report).unwrap(), expected, "{case}");
         // These fixtures describe version 1 of the report format.
         assert_eq!(report.schema_version, 1, "{case}");
