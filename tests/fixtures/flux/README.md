@@ -9,13 +9,16 @@ Each directory pairs recorder files or excerpts with a hand-authored
 | `diagnostic` | Keep a located error; omit a warning. A normal error exit can have a complete report. |
 | `crashes` | Associate one JSON ICE with its matching panic block. Keep two identical text-only panics separate, with unknown package/target. |
 | `real_crashes` | Real Firecracker run excerpts: two explicit ICEs, each with a panic block, and two plain `Tuple3` panics. |
-| `interrupted` | Truncated diagnostic JSON plus a signal exit must not look like a complete, empty error list. |
+| `interrupted` | A signal exit produces an incomplete report. |
 | `launch_failure` | Report a command launch failure, citing `result.json`. |
 
 `complete` means the command finished without crashing and error extraction
 succeeded. It does not mean every workspace package was checked. Missing
 `result.json` or an absent exit code without a launch error indicates an
 interrupted recording. A recorded launch error is an invocation failure.
+
+Extraction failures will panic in the parser rather than become a report status.
+Malformed logs remain available as raw evidence; no report should be published.
 
 Error kinds distinguish `internal_compiler_error` (an explicit ICE diagnostic)
 from `panic` (a panic without an associated ICE diagnostic). An ICE can also

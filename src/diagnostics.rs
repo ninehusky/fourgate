@@ -19,7 +19,6 @@ pub enum IncompleteReason {
     CompilerCrash,
     RunInterrupted,
     InvocationFailure,
-    ExtractionFailure,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
