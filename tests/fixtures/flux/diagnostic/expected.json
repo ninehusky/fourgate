@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "complete": true,
+  "incomplete_reasons": [],
+  "errors": [
+    {
+      "kind": "diagnostic",
+      "message": "arithmetic operation may underflow",
+      "code": "FLUX",
+      "package": "demo",
+      "target": "demo",
+      "spans": [
+        {
+          "file": "src/lib.rs",
+          "line_start": 8,
+          "column_start": 5,
+          "line_end": 8,
+          "column_end": 10,
+          "primary": true,
+          "label": "possible underflow"
+        }
+      ],
+      "evidence": [
+        {
+          "file": "stdout.log",
+          "line_start": 2,
+          "line_end": 2
+        }
+      ]
+    }
+  ]
+}

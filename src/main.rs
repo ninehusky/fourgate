@@ -34,6 +34,8 @@ struct Cli {
 enum Action {
     /// Run a command and save its invocation, raw output, and result.
     Record(Record),
+    /// Run cargo flux and save its invocation, raw output, and result.
+    Flux(Flux),
     /// Inventory recognized panic transfers in an ELF binary's assembly.
     MeasurePanics(measure_panics::MeasurePanics),
 }
@@ -49,6 +51,19 @@ struct Record {
     /// Executable and arguments, passed directly without shell interpretation.
     #[arg(last = true, required = true, num_args = 1..)]
     command: Vec<String>,
+}
+
+#[derive(Args)]
+struct Flux {
+    /// Repository root in which to run cargo flux.
+    #[arg(long)]
+    repo: PathBuf,
+    /// New output directory; its parent must already exist.
+    #[arg(long)]
+    output: PathBuf,
+    /// Additional arguments passed directly to cargo flux.
+    #[arg(last = true)]
+    args: Vec<String>,
 }
 
 /// Capture a build, Flux run, or other command without interpreting its output.
@@ -107,6 +122,15 @@ fn record(args: Record) -> Result<i32, Box<dyn std::error::Error>> {
 fn main() {
     let result = match Cli::parse().command {
         Action::Record(args) => record(args),
+        Action::Flux(args) => record(Record {
+            repo: args.repo,
+            output: args.output,
+            command: ["cargo", "flux", "--message-format=json"]
+                .map(String::from)
+                .into_iter()
+                .chain(args.args)
+                .collect(),
+        }),
         Action::MeasurePanics(args) => measure_panics::run(args).map(|()| 0),
     };
     match result {

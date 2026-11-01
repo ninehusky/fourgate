@@ -1,0 +1,11 @@
+thread 'rustc' (5424) panicked at crates/flux-refineck/src/type_env.rs:610:18:
+Box<dyn Any>
+
+thread 'rustc' (5847) panicked at crates/flux-infer/src/infer.rs:506:36:
+Box<dyn Any>
+
+thread 'rustc' (5990) panicked at lib/liquid-fixpoint/src/cstr2smt2.rs:635:9:
+Unexpected polymorphic datatype constructor encountered Tuple3
+
+thread 'rustc' (6332) panicked at lib/liquid-fixpoint/src/cstr2smt2.rs:635:9:
+Unexpected polymorphic datatype constructor encountered Tuple3
