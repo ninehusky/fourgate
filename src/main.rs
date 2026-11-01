@@ -1,4 +1,5 @@
 use clap::{Args, Parser, Subcommand};
+mod diagnostics;
 mod measure_panics;
 use serde_json::json;
 use std::{
@@ -34,7 +35,7 @@ struct Cli {
 enum Action {
     /// Run a command and save its invocation, raw output, and result.
     Record(Record),
-    /// Run cargo flux and save its invocation, raw output, and result.
+    /// Run cargo flux and save raw output, result, and an error report.
     Flux(Flux),
     /// Inventory recognized panic transfers in an ELF binary's assembly.
     MeasurePanics(measure_panics::MeasurePanics),
@@ -119,18 +120,29 @@ fn record(args: Record) -> Result<i32, Box<dyn std::error::Error>> {
     Ok(code.unwrap_or(1))
 }
 
+fn flux(args: Flux) -> Result<i32, Box<dyn std::error::Error>> {
+    let output = args.output;
+    let code = record(Record {
+        repo: args.repo,
+        output: output.clone(),
+        command: ["cargo", "flux", "--message-format=json"]
+            .map(String::from)
+            .into_iter()
+            .chain(args.args)
+            .collect(),
+    })?;
+    let report = diagnostics::read_report(&output)?;
+    fs::write(
+        output.join("errors.json"),
+        serde_json::to_vec_pretty(&report)?,
+    )?;
+    Ok(code)
+}
+
 fn main() {
     let result = match Cli::parse().command {
         Action::Record(args) => record(args),
-        Action::Flux(args) => record(Record {
-            repo: args.repo,
-            output: args.output,
-            command: ["cargo", "flux", "--message-format=json"]
-                .map(String::from)
-                .into_iter()
-                .chain(args.args)
-                .collect(),
-        }),
+        Action::Flux(args) => flux(args),
         Action::MeasurePanics(args) => measure_panics::run(args).map(|()| 0),
     };
     match result {
