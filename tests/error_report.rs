@@ -6,8 +6,12 @@ use diagnostics::{ErrorKind, ErrorReport, EvidenceFile, IncompleteReason};
 use serde_json::Value;
 use std::{fs, path::Path};
 
-// Check each hand-written report against the Rust schema and verify its status,
-// source coordinates, and references into the accompanying raw evidence.
+// This checks the hand-written report fixtures, without running Flux or parsing logs:
+// 1. Deserialize expected.json into the schema and verify its JSON round-trip.
+// 2. Check version and completeness metadata, plus one-based, ordered source spans.
+// 3. Ensure each evidence range fits inside its referenced recording file.
+// Evidence usually refers to stdout/stderr. For a command that never started,
+// the recorder puts the launch error in result.json, so that file is evidence too.
 #[test]
 fn reports_fit_schema_and_reference_existing_evidence() {
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/flux");

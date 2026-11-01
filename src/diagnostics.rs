@@ -1,13 +1,24 @@
-//! Draft schema for errors.json. Not yet produced by `fourgate flux`.
+//! Schema for `errors.json`, the error report for one recorded `fourgate flux` run.
+//!
+//! The intended parser reads `stdout.log` and `stderr.log` for diagnostics, ICEs,
+//! and panics, and `result.json` for the command's exit or launch failure. Errors
+//! retain references into those original files; warnings stay in the raw logs.
+//!
+//! This change defines the schema and example reports only. `fourgate flux`
+//! records commands today; parsing and automatic report generation follow separately.
 
 use serde::{Deserialize, Serialize};
 
+/// Recovered errors and run completeness, without duplicating the exit code in
+/// `result.json`. A normal verification failure can have a complete error report.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorReport {
+    /// Version of this report's JSON format.
     pub schema_version: u32,
     /// True iff incomplete_reasons is empty. Does not imply proof coverage,
     /// that every workspace target was checked, or that verification passed.
     pub complete: bool,
+    /// Why the run could not produce a complete diagnostic inventory.
     pub incomplete_reasons: Vec<IncompleteReason>,
     /// One entry per occurrence, without warnings or inferred culprit functions.
     pub errors: Vec<FluxError>,
@@ -16,11 +27,16 @@ pub struct ErrorReport {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum IncompleteReason {
+    /// An explicit ICE or panic means compiler diagnostics may be missing.
     CompilerCrash,
+    /// Final result metadata is absent, or the child terminated without an exit code.
     RunInterrupted,
+    /// The checker command could not start; its error is recorded in `result.json`.
     InvocationFailure,
 }
 
+/// One error occurrence. This deliberately avoids deciding whether a diagnostic
+/// is a proof failure, unsupported feature, or another compiler/build error.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FluxError {
     pub kind: ErrorKind,
@@ -62,6 +78,7 @@ pub struct Span {
     pub label: Option<String>,
 }
 
+/// A range in an original recording file, not in the generated error report.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Evidence {
     pub file: EvidenceFile,
@@ -76,6 +93,7 @@ pub enum EvidenceFile {
     Stdout,
     #[serde(rename = "stderr.log")]
     Stderr,
+    /// Recorder metadata supplies launch errors when no checker output exists.
     #[serde(rename = "result.json")]
     Result,
 }
