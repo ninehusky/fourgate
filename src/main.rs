@@ -37,6 +37,10 @@ enum Action {
     Record(Record),
     /// Run cargo flux and save raw output, result, and an error report.
     Flux(Flux),
+    /// Parse saved Flux logs into an error report on stdout, without rerunning Flux.
+    ParseFlux(ParseFlux),
+    /// Reject recorded Flux runs with crashes, interruptions, or invocation failures.
+    GateFlux(ParseFlux),
     /// Inventory recognized panic transfers in an ELF binary's assembly.
     MeasurePanics(measure_panics::MeasurePanics),
 }
@@ -65,6 +69,35 @@ struct Flux {
     /// Additional arguments passed directly to cargo flux.
     #[arg(last = true)]
     args: Vec<String>,
+}
+
+#[derive(Args)]
+struct ParseFlux {
+    /// Recording directory containing stdout.log, stderr.log, and optional result.json.
+    #[arg(long)]
+    input: PathBuf,
+}
+
+fn parse_flux(args: ParseFlux) -> Result<i32, Box<dyn std::error::Error>> {
+    let report = diagnostics::read_report(&args.input)?;
+    let mut stdout = io::stdout().lock();
+    serde_json::to_writer_pretty(&mut stdout, &report)?;
+    writeln!(stdout)?;
+    Ok(0)
+}
+
+fn gate_flux(args: ParseFlux) -> Result<i32, Box<dyn std::error::Error>> {
+    // Reparse original evidence rather than trusting a stale or edited errors.json.
+    let report = diagnostics::read_report(&args.input)?;
+    if !report.complete {
+        return Err(format!(
+            "Flux interruption gate failed: {}",
+            serde_json::to_string(&report.incomplete_reasons)?
+        )
+        .into());
+    }
+    println!("Flux interruption gate passed");
+    Ok(0)
 }
 
 /// Capture a build, Flux run, or other command without interpreting its output.
@@ -143,6 +176,8 @@ fn main() {
     let result = match Cli::parse().command {
         Action::Record(args) => record(args),
         Action::Flux(args) => flux(args),
+        Action::ParseFlux(args) => parse_flux(args),
+        Action::GateFlux(args) => gate_flux(args),
         Action::MeasurePanics(args) => measure_panics::run(args).map(|()| 0),
     };
     match result {

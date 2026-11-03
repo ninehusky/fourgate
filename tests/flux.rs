@@ -36,6 +36,140 @@ fn executable(path: &Path, contents: &str) {
     fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
 }
 
+// Saved recordings must be usable without Cargo or any target checkout.
+#[test]
+fn parse_flux_replays_recordings_without_changing_evidence() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/flux");
+    for case in [
+        "success",
+        "diagnostic",
+        "crashes",
+        "real_crashes",
+        "interrupted",
+        "launch_failure",
+    ] {
+        let temp = Temp::new();
+        for name in ["stdout.log", "stderr.log", "result.json"] {
+            fs::copy(fixtures.join(case).join(name), temp.0.join(name)).unwrap();
+        }
+        // An existing report is evidence too: parsing must not replace it.
+        fs::write(temp.0.join("errors.json"), "existing report").unwrap();
+        let run = Command::new(env!("CARGO_BIN_EXE_fourgate"))
+            .args(["parse-flux", "--input"])
+            .arg(&temp.0)
+            .env("PATH", "")
+            .output()
+            .unwrap();
+        assert!(run.status.success(), "{case}: {:?}", run.stderr);
+        let actual: Value = serde_json::from_slice(&run.stdout).unwrap();
+        let expected: Value =
+            serde_json::from_slice(&fs::read(fixtures.join(case).join("expected.json")).unwrap())
+                .unwrap();
+        assert_eq!(actual, expected, "{case}");
+        for name in ["stdout.log", "stderr.log", "result.json"] {
+            assert_eq!(
+                fs::read(temp.0.join(name)).unwrap(),
+                fs::read(fixtures.join(case).join(name)).unwrap()
+            );
+        }
+        assert_eq!(
+            fs::read_to_string(temp.0.join("errors.json")).unwrap(),
+            "existing report"
+        );
+    }
+}
+
+#[test]
+fn parse_flux_handles_missing_results_and_rejects_damaged_logs() {
+    let temp = Temp::new();
+    fs::write(temp.0.join("stdout.log"), "").unwrap();
+    fs::write(temp.0.join("stderr.log"), "").unwrap();
+    let parse = || {
+        Command::new(env!("CARGO_BIN_EXE_fourgate"))
+            .args(["parse-flux", "--input"])
+            .arg(&temp.0)
+            .output()
+            .unwrap()
+    };
+    let run = parse();
+    assert!(run.status.success());
+    let report: Value = serde_json::from_slice(&run.stdout).unwrap();
+    assert_eq!(report["complete"], false);
+    assert_eq!(report["incomplete_reasons"], json!(["run_interrupted"]));
+    fs::write(temp.0.join("stdout.log"), "{").unwrap();
+    let run = parse();
+    assert!(!run.status.success());
+    assert!(run.stdout.is_empty(), "must not publish a partial report");
+    assert_eq!(fs::read(temp.0.join("stdout.log")).unwrap(), b"{");
+}
+
+#[test]
+fn interruption_gate_accepts_diagnostics_but_rejects_catastrophic_failures() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/flux");
+    for (case, passes) in [
+        ("success", true),
+        ("diagnostic", true),
+        ("crashes", false),
+        ("real_crashes", false),
+        ("interrupted", false),
+        ("launch_failure", false),
+        ("malformed_json", false),
+    ] {
+        let run = Command::new(env!("CARGO_BIN_EXE_fourgate"))
+            .args(["gate-flux", "--input"])
+            .arg(fixtures.join(case))
+            .output()
+            .unwrap();
+        assert_eq!(run.status.success(), passes, "{case}: {:?}", run.stderr);
+    }
+}
+
+#[test]
+fn interruption_gate_uses_raw_logs_and_requires_finished_readable_evidence() {
+    let temp = Temp::new();
+    let gate = || {
+        Command::new(env!("CARGO_BIN_EXE_fourgate"))
+            .args(["gate-flux", "--input"])
+            .arg(&temp.0)
+            .output()
+            .unwrap()
+    };
+    // Missing logs must fail, even if a report claims success.
+    fs::write(temp.0.join("errors.json"), r#"{"complete":true}"#).unwrap();
+    assert!(!gate().status.success());
+    fs::write(temp.0.join("stdout.log"), "").unwrap();
+    fs::write(temp.0.join("stderr.log"), "").unwrap();
+    assert!(!gate().status.success(), "missing result must fail");
+    fs::write(
+        temp.0.join("result.json"),
+        r#"{"exit_code":0,"launch_error":null}"#,
+    )
+    .unwrap();
+    assert!(gate().status.success());
+    fs::write(
+        temp.0.join("stderr.log"),
+        "thread 'rustc' panicked at compiler.rs:1:1:\ncrash\n",
+    )
+    .unwrap();
+    let run = gate();
+    assert!(
+        !run.status.success(),
+        "crash must override a zero exit and stale report"
+    );
+    assert!(String::from_utf8_lossy(&run.stderr).contains("compiler_crash"));
+    fs::write(temp.0.join("stdout.log"), "error: ordinary proof failure\n").unwrap();
+    fs::write(temp.0.join("stderr.log"), "Caused by:\n  process didn't exit successfully: `flux-driver` (signal: 9, SIGKILL: kill)\n").unwrap();
+    let run = gate();
+    assert!(
+        !run.status.success(),
+        "a killed compiler must fail despite other diagnostics"
+    );
+    assert!(String::from_utf8_lossy(&run.stderr).contains("run_interrupted"));
+    fs::write(temp.0.join("stderr.log"), "").unwrap();
+    fs::write(temp.0.join("result.json"), "{").unwrap();
+    assert!(!gate().status.success(), "malformed result must fail");
+}
+
 // Run the real fourgate CLI against a fake Cargo that replays fixture logs.
 // Check automatic reports, command forwarding, preserved evidence, and rerun protection.
 #[test]
