@@ -13,6 +13,7 @@ Pipeline:
 Only the first proof step is implemented here; binary measurement is separate.
 Flux repair can be needed throughout;
 these steps are not a one-time pass through the codebase.
+For crash isolation, use `.agents/skills/repair-flux-interruptions/SKILL.md`.
 
 Write short. Separate observations verified by running commands from inferences.
 Write remotely only to ninehusky/*; never push or comment upstream. Print and

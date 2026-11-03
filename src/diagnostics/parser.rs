@@ -55,6 +55,7 @@ struct Panic {
 fn parse(stdout: &[u8], stderr: &[u8], result: Option<&[u8]>) -> ErrorReport {
     let mut errors = Vec::new();
     let mut panics = Vec::new();
+    let mut subprocess_interrupted = false;
     for (bytes, file) in [
         (stdout, EvidenceFile::Stdout),
         (stderr, EvidenceFile::Stderr),
@@ -68,6 +69,13 @@ fn parse(stdout: &[u8], stderr: &[u8], result: Option<&[u8]>) -> ErrorReport {
                 continue;
             }
             let trimmed = line.trim();
+            // Cargo can exit normally after a compiler subprocess was killed.
+            // Its own exit_code alone therefore cannot establish completeness.
+            if trimmed.starts_with("process didn't exit successfully:")
+                && trimmed.contains("(signal: ")
+            {
+                subprocess_interrupted = true;
+            }
             if trimmed.starts_with('{') {
                 let value = serde_json::from_str::<Value>(trimmed).unwrap_or_else(|error| {
                     panic!("invalid JSON at {file:?}:{}: {error}", index + 1)
@@ -184,7 +192,9 @@ fn parse(stdout: &[u8], stderr: &[u8], result: Option<&[u8]>) -> ErrorReport {
                     launch_error: None,
                 } => {
                     assert!(
-                        !exit_code.is_some_and(|code| code != 0) || !errors.is_empty(),
+                        !exit_code.is_some_and(|code| code != 0)
+                            || !errors.is_empty()
+                            || subprocess_interrupted,
                         "failed command without a recovered error"
                     );
                     (exit_code.is_none(), false)
@@ -200,7 +210,10 @@ fn parse(stdout: &[u8], stderr: &[u8], result: Option<&[u8]>) -> ErrorReport {
     });
     let incomplete_reasons: Vec<_> = [
         (crashed, IncompleteReason::CompilerCrash),
-        (interrupted, IncompleteReason::RunInterrupted),
+        (
+            interrupted || subprocess_interrupted,
+            IncompleteReason::RunInterrupted,
+        ),
         (invocation_failed, IncompleteReason::InvocationFailure),
     ]
     .into_iter()
@@ -383,6 +396,29 @@ mod tests {
 
     const SUCCESS: &[u8] = br#"{"exit_code":0,"launch_error":null}"#;
     const FAILURE: &[u8] = br#"{"exit_code":101,"launch_error":null}"#;
+
+    #[test]
+    fn cargo_subprocess_signal_is_an_interruption_even_with_other_diagnostics() {
+        let killed = b"Caused by:\n  process didn't exit successfully: `flux-driver ...` (signal: 9, SIGKILL: kill)\n";
+        for stdout in [
+            b"".as_slice(),
+            b"error: ordinary proof failure\n".as_slice(),
+        ] {
+            let report = parse(stdout, killed, Some(FAILURE));
+            assert!(!report.complete);
+            assert_eq!(
+                report.incomplete_reasons,
+                vec![IncompleteReason::RunInterrupted]
+            );
+        }
+        // Quoting Cargo's wording in a diagnostic is not a subprocess signal.
+        let report = parse(
+            b"error: process didn't exit successfully: (signal: 9)\n",
+            b"",
+            Some(FAILURE),
+        );
+        assert!(report.complete);
+    }
 
     // A proof diagnostic can mention panic text without reporting an actual
     // compiler crash. Preserve its code and stream attribution as a diagnostic.
