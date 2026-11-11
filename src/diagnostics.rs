@@ -33,7 +33,8 @@ pub struct ErrorReport {
 pub enum IncompleteReason {
     /// An explicit ICE or panic means compiler diagnostics may be missing.
     CompilerCrash,
-    /// Final result metadata is absent, or the child terminated without an exit code.
+    /// Result metadata is absent, the child has no exit code, or Cargo reports
+    /// that a compiler subprocess terminated by signal.
     RunInterrupted,
     /// The checker command could not start; its error is recorded in `result.json`.
     InvocationFailure,

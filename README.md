@@ -13,5 +13,24 @@ Warnings stay in the raw logs. See the [log/report examples](tests/fixtures/flux
 Extraction failures panic; raw logs and the command's result remain available.
 It requires `cargo-flux` installed from the pinned `vendor/flux` revision.
 
+`fourgate parse-flux --input /path/to/recorded-run` parses saved logs into the
+same schema on stdout without running Flux or changing the recording. Missing
+`result.json` produces an incomplete report. Exit zero means extraction succeeded,
+even if the recorded run crashed; inspect `complete` and `incomplete_reasons`.
+
+`fourgate gate-flux --input /path/to/recorded-run` exits zero only for a complete
+diagnostic inventory. ICEs, panics, interrupted runs, launch failures, and unreadable
+or malformed evidence fail the gate. It reparses the raw recording rather than
+trusting `errors.json`. Ordinary verification errors may pass this gate; it does
+not establish proof coverage or verification success. Run it after each repair
+and on the final broad run, even when `fourgate flux` returned a nonzero exit.
+Cargo-reported compiler subprocess signals also fail, even when Cargo itself
+returns a normal error exit alongside other diagnostics.
+
+For crash isolation and narrowly scoped trust annotations, use the repository's
+[repair-flux-interruptions skill](.agents/skills/repair-flux-interruptions/SKILL.md).
+Keep repair attempts, patches, the repeatable command, native agent transcript,
+and available token/time measurements together in `runs/NAME/` (ignored by Git).
+
 `fourgate measure-panics --binary ELF --output NEW_DIRECTORY`
 inventories recognized panic sites in machine code. See [Measure panics](stages/measure-panics.md).
