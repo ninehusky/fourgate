@@ -42,9 +42,19 @@ ledger. List prints the table and rebuilds `ISSUES.md`; edit JSON through the
 commands, not the generated Markdown.
 
 Statuses are `"not_started"`, `"in_progress"`, `"needs_human"`, or
-`{"resolved": null}` / `{"resolved": "Accepted narrow exemption after review."}`.
-A validated trust exemption may resolve a crash todo, with a resolution note
-stating which body remains unproved. `needs_human` means a blocker requiring a
+`{"resolved": null}` / `{"resolved": "Fixed the underlying problem."}`.
+For a trust exemption, first file a separate `not_started` follow-up for each
+retained body or generated-code span. Name the body/location, annotation or trust
+flag, and original crash ID, and copy the supporting evidence. Then resolve the
+crash with a nonempty note such as `"Bypassed via trusted on set_before; remains
+unproved; removal tracked in issue-9."` Reuse existing follow-ups when resuming.
+Do not resolve the crash if filing its follow-up failed.
+
+Follow-ups stay open while their exemptions remain. A gate pass or acceptance of
+the quarantine does not close them. Closing one requires removing the exemption
+and recording actual checking without it; any remaining ordinary proof work must
+still be stated. These are instructions for the agent, not CLI-enforced transitions;
+the generic ledger has no crash-specific issue type. `needs_human` means a blocker requiring a
 decision, not routine approval after every narrow exemption.
 
 Keep the ledger across invocations. Reopen recurring problems and add new ones;

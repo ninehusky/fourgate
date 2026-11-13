@@ -30,7 +30,9 @@ returns a normal error exit alongside other diagnostics.
 For the crash-repair loop in Claude Code, invoke `/address-ices runs/NAME`.
 The [repair skill](.claude/skills/address-ices/SKILL.md) repeatedly isolates crashes,
 tests narrow trust exemptions, and updates `ISSUES.md`. It continues until the
-broad interruption gate passes or remaining work needs human judgment. Supply the target and checker setup if they are not already recorded.
+broad interruption gate passes or remaining work needs human judgment. Every
+retained exemption leaves an open follow-up for removing it; resolving the crash
+does not discard that work. Supply the target and checker setup if they are not already recorded.
 
 `fourgate issues file|update|list --run runs/NAME` manages the run's typed todo
 ledger and generates its `ISSUES.md` table. See [ledger commands and JSON input](stages/issues.md).

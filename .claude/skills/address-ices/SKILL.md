@@ -38,7 +38,8 @@ after every body. Keep prior retained exemptions in subsequent runs.
    results. Never quote diagnostic totals from a compiler-panic run. A signal,
    setup failure, or parser failure alone is not grounds to trust a body.
 3. File or resume issues for distinguishable observed crashes, then select one
-   actionable issue to investigate. Describe the
+   actionable crash issue to investigate. Open proof/exemption-removal follow-ups
+   are separate work; do not select them merely because they are NotStarted. Describe the
    observed signature separately from hypotheses. A todo can cover related
    diagnostics; do not automatically file an issue for every diagnostic.
 4. Reproduce and isolate that signature. Follow the baseline, experiment selection,
@@ -86,16 +87,33 @@ Use `fourgate issues file|update|list --run RUN` to maintain `issues.json` and i
 generated `ISSUES.md` table. See [the ledger commands](../../../stages/issues.md)
 for input JSON and status encoding. Never edit the Markdown table directly.
 
-File with `NotStarted`, then use `InProgress` while investigating. A validated
-crash bypass can be `Resolved` with a note naming the retained trust exemption
-and explicitly saying that the body remains unproved. This resolves the crash
-todo, not its proof obligations. Keep those resolution notes discoverable for
-future agents removing exemptions by fixing Flux, rewriting code, or proving
-panic freedom. Reserve `NeedsHuman` for a blocker or a remedy
-outside the authorized body-level exemption workflow. Update after a
-material finding or experiment, retaining prior evidence. Keep the description
-short: problem, current diagnosis, retained or proposed body/change, validation, and any
-specific decision needed. Put lengthy details in linked evidence files.
+File with `NotStarted`, then use `InProgress` while investigating.
+
+Before resolving a crash by quarantine, file or reuse an **open follow-up for
+each retained body exemption or generated-code trust span**. Use the existing
+Issue schema: `NotStarted`, a description naming the exact body/source location,
+the annotation or trust flag, the originating crash issue ID, and the work needed
+to remove the exemption (fix Flux, rewrite code, then check the body). Copy the
+relevant patch/flag and negative/positive evidence references. Name the follow-up
+ID in the crash's nonempty resolution note. No new issue type or schema is needed.
+
+Create the follow-up first. If filing it fails, do not resolve the crash. On resume,
+reuse an existing open follow-up for that exact exemption rather than duplicating
+it. Audit prior resolved crash issues and retained trust configuration too: add
+missing follow-ups before declaring this invocation complete. A crash covering
+several retained derive spans needs a follow-up for each span.
+
+`Resolved` on the crash means its interruption was bypassed; the follow-up stays
+open while the exemption remains, even after a gate pass or human acceptance.
+Close the follow-up only when its exemption is removed and a recorded run shows
+the intended body is actually checked without that exemption. State any remaining
+ordinary proof obligations; do not claim panic freedom without discharging them.
+
+Reserve `NeedsHuman` for a blocker or a remedy outside the authorized body-level
+exemption workflow. Update after a material finding or experiment, retaining prior
+evidence. Keep the description short: problem, current diagnosis, retained or
+proposed body/change, validation, and any specific decision needed. Put lengthy
+details in linked evidence files.
 
 Evidence paths are relative to RUN, with one-based inclusive line ranges. Keep
 attempts immutable. Save the target patch, exact commands/environment, and this
@@ -122,6 +140,10 @@ Finish when a fresh original-scope recording passes `gate-flux` with evidence
 that intended checking ran, or remaining crashes cannot be advanced within the
 authorized workflow. Ordinary verification errors may remain. A compiler crash,
 signal, cached/no-match run, or extraction failure is not successful completion.
+
+Before finishing, reconcile the retained patch and trust flags against open
+follow-ups: every exempted body/span must have one. An incomplete reconciliation
+is a ledger blocker, not a successful handoff.
 
 Link `RUN/ISSUES.md` in a short final reply. Summarize retained exemptions, the
 final recording/gate result, and human blockers. Keep the ledger and recordings
