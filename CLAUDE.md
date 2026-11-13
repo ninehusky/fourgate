@@ -15,7 +15,7 @@ Flux repair can be needed throughout;
 these steps are not a one-time pass through the codebase.
 For the crash-repair loop and its issue ledger, use `/address-ices RUN`
 (`.claude/skills/address-ices/SKILL.md`). The older
-`.agents/skills/address-ices-interruptions/SKILL.md` documents isolation mechanics
+`.agents/skills/repair-flux-interruptions/SKILL.md` documents isolation mechanics
 and the full multi-crash repair workflow.
 
 Write short. Separate observations verified by running commands from inferences.
