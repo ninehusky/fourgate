@@ -1,5 +1,6 @@
 use clap::{Args, Parser, Subcommand};
 mod diagnostics;
+mod issues;
 mod measure_panics;
 use serde_json::json;
 use std::{
@@ -33,6 +34,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Action {
+    /// File, update, or list run-local todos and generate ISSUES.md.
+    Issues(issues::Issues),
     /// Run a command and save its invocation, raw output, and result.
     Record(Record),
     /// Run cargo flux and save raw output, result, and an error report.
@@ -174,6 +177,7 @@ fn flux(args: Flux) -> Result<i32, Box<dyn std::error::Error>> {
 
 fn main() {
     let result = match Cli::parse().command {
+        Action::Issues(args) => issues::run(args).map(|()| 0).map_err(Into::into),
         Action::Record(args) => record(args),
         Action::Flux(args) => flux(args),
         Action::ParseFlux(args) => parse_flux(args),
