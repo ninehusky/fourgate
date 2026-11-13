@@ -27,8 +27,14 @@ and on the final broad run, even when `fourgate flux` returned a nonzero exit.
 Cargo-reported compiler subprocess signals also fail, even when Cargo itself
 returns a normal error exit alongside other diagnostics.
 
-For crash isolation and narrowly scoped trust annotations, use the repository's
-[repair-flux-interruptions skill](.agents/skills/repair-flux-interruptions/SKILL.md).
+For the crash-repair loop in Claude Code, invoke `/address-ices runs/NAME`.
+The [repair skill](.claude/skills/address-ices/SKILL.md) repeatedly isolates crashes,
+tests narrow trust exemptions, and updates `ISSUES.md`. It continues until the
+broad interruption gate passes or remaining work needs human judgment. Supply the target and checker setup if they are not already recorded.
+
+`fourgate issues file|update|list --run runs/NAME` manages the run's typed todo
+ledger and generates its `ISSUES.md` table. See [ledger commands and JSON input](stages/issues.md).
+The schema lives in `src/issues.rs`; parser errors stay independent of these todos.
 Keep repair attempts, patches, the repeatable command, native agent transcript,
 and available token/time measurements together in `runs/NAME/` (ignored by Git).
 

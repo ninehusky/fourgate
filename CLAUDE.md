@@ -13,7 +13,10 @@ Pipeline:
 Only the first proof step is implemented here; binary measurement is separate.
 Flux repair can be needed throughout;
 these steps are not a one-time pass through the codebase.
-For crash isolation, use `.agents/skills/repair-flux-interruptions/SKILL.md`.
+For the crash-repair loop and its issue ledger, use `/address-ices RUN`
+(`.claude/skills/address-ices/SKILL.md`). The older
+`.agents/skills/address-ices-interruptions/SKILL.md` documents isolation mechanics
+and the full multi-crash repair workflow.
 
 Write short. Separate observations verified by running commands from inferences.
 Write remotely only to ninehusky/*; never push or comment upstream. Print and
