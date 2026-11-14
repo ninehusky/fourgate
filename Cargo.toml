@@ -10,3 +10,7 @@ rustc-demangle = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+
+syn = { version = "3", features = ["full"] }
+proc-macro2 = { version = "1", features = ["span-locations"] }
+toml = { version = "0.9", default-features = false, features = ["parse", "std", "serde"] }

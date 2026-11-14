@@ -1,5 +1,7 @@
 use clap::{Args, Parser, Subcommand};
 mod diagnostics;
+mod flux_issue;
+mod issue_gate;
 mod issues;
 mod measure_panics;
 use serde_json::json;
