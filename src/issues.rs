@@ -1,5 +1,6 @@
 //! Run-local todos. `issues.json` is authoritative; `ISSUES.md` is a generated view.
 
+use crate::flux_issue::{FluxErrorRef, FluxRefinementIssue, SourceAnchor};
 use clap::{Args, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -16,6 +17,9 @@ pub struct Issue {
     pub description: String,
     pub status: IssueStatus,
     pub evidence: Vec<IssueEvidence>,
+    /// Optional structured code tracking; legacy generic todos remain readable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flux: Option<FluxRefinementIssue>,
 }
 
 /// An individual piece of evidence associated with an issue.
@@ -53,11 +57,38 @@ enum IssueAction {
     File(Change),
     /// Replace an existing issue by id with a complete JSON Issue.
     Update(Change),
+    /// Link one recorded error to a new or existing issue; never auto-resolve.
+    Observe(Observe),
+    /// Check current source anchors, retained trusts, and diagnostic references.
+    Gate {
+        #[arg(long)]
+        run: PathBuf,
+        #[arg(long)]
+        repo: PathBuf,
+    },
     /// Print the table and regenerate ISSUES.md from issues.json.
     List {
         #[arg(long)]
         run: PathBuf,
     },
+}
+
+#[derive(Args)]
+struct Observe {
+    #[arg(long)]
+    run: PathBuf,
+    /// Saved errors.json beneath the ledger (relative to --run).
+    #[arg(long)]
+    report: PathBuf,
+    /// Zero-based index into the recorded errors array.
+    #[arg(long)]
+    error_index: usize,
+    /// Existing issue id; omission creates an issue.
+    #[arg(long)]
+    issue: Option<String>,
+    /// Source-anchor JSON; required for a new issue.
+    #[arg(long)]
+    anchor: Option<PathBuf>,
 }
 
 #[derive(Args)]
@@ -81,6 +112,16 @@ pub fn run(args: Issues) -> io::Result<()> {
             let id = issue.id.clone();
             update_issue(&args.run, issue)?;
             println!("Updated {id}");
+        }
+        IssueAction::Observe(args) => observe(args)?,
+        IssueAction::Gate { run, repo } => {
+            if !run.join("issues.json").is_file() {
+                return Err(invalid("gate requires an existing issues.json ledger"));
+            }
+            let _lock = LedgerLock::acquire(&run)?;
+            let issues = read_ledger(&run)?;
+            crate::issue_gate::check(&run, &repo, &issues)?;
+            println!("Issue consistency gate passed (not a coverage or proof gate)");
         }
         IssueAction::List { run } => {
             let _lock = LedgerLock::acquire(&run)?;
@@ -144,6 +185,79 @@ pub fn file_issue(directory: &Path, mut issue: Issue) -> io::Result<String> {
     Ok(id)
 }
 
+fn observe(args: Observe) -> io::Result<()> {
+    let _lock = LedgerLock::acquire(&args.run)?;
+    let mut issues = read_ledger(&args.run)?;
+    let reference = FluxErrorRef {
+        report: args.report,
+        error_index: args.error_index,
+    };
+    let error = crate::issue_gate::read_observation(&args.run, &reference)?;
+    let anchor: Option<SourceAnchor> = args
+        .anchor
+        .map(|path| -> io::Result<_> {
+            serde_json::from_slice(&fs::read(path)?).map_err(invalid_json)
+        })
+        .transpose()?;
+    let index = if let Some(id) = args.issue {
+        issues
+            .iter()
+            .position(|issue| issue.id == id)
+            .ok_or_else(|| invalid(format!("unknown issue {id}")))?
+    } else {
+        if anchor.is_none() {
+            return Err(invalid("new observations require --anchor"));
+        }
+        let mut number = 1u64;
+        while issues
+            .iter()
+            .any(|issue| issue.id == format!("issue-{number}"))
+        {
+            number += 1;
+        }
+        issues.push(Issue {
+            id: format!("issue-{number}"),
+            description: error.message,
+            status: IssueStatus::NotStarted,
+            evidence: vec![],
+            flux: Some(FluxRefinementIssue {
+                places: vec![],
+                observations: vec![],
+            }),
+        });
+        issues.len() - 1
+    };
+    let issue = &mut issues[index];
+    if matches!(issue.status, IssueStatus::Resolved(_)) {
+        return Err(invalid(
+            "reopen the issue explicitly before linking a new observation",
+        ));
+    }
+    let tracking = issue.flux.get_or_insert_with(|| FluxRefinementIssue {
+        places: vec![],
+        observations: vec![],
+    });
+    if let Some(anchor) = anchor {
+        if let Some(existing) = tracking
+            .places
+            .iter_mut()
+            .find(|place| place.marker == anchor.marker)
+        {
+            *existing = anchor;
+        } else {
+            tracking.places.push(anchor);
+        }
+    }
+    if !tracking.observations.contains(&reference) {
+        tracking.observations.push(reference);
+    }
+    validate(&args.run, issue)?;
+    let id = issue.id.clone();
+    save(&args.run, &issues)?;
+    println!("Linked observation to {id}");
+    Ok(())
+}
+
 fn update_issue(directory: &Path, issue: Issue) -> io::Result<()> {
     let _lock = LedgerLock::acquire(directory)?;
     let mut issues = read_ledger(directory)?;
@@ -156,7 +270,7 @@ fn update_issue(directory: &Path, issue: Issue) -> io::Result<()> {
     save(directory, &issues)
 }
 
-fn validate(directory: &Path, issue: &Issue) -> io::Result<()> {
+pub(crate) fn validate(directory: &Path, issue: &Issue) -> io::Result<()> {
     if issue.id.is_empty()
         || !issue
             .id
@@ -195,6 +309,18 @@ fn validate(directory: &Path, issue: &Issue) -> io::Result<()> {
                 "invalid evidence line range in {}",
                 evidence.path.display()
             )));
+        }
+    }
+    if let Some(flux) = &issue.flux {
+        let mut markers = HashSet::new();
+        for place in &flux.places {
+            crate::issue_gate::validate_anchor(place)?;
+            if !markers.insert(&place.marker) {
+                return Err(invalid("issue contains a repeated source marker"));
+            }
+        }
+        for observation in &flux.observations {
+            crate::issue_gate::read_observation(directory, observation)?;
         }
     }
     Ok(())
@@ -281,7 +407,7 @@ fn link_path(path: &Path) -> String {
 
 fn render(issues: &[Issue]) -> String {
     let mut markdown = String::from(
-        "# Issues\n\nGenerated from `issues.json`; update issues through fourgate.\n\n| ID | Description | Status | Evidence |\n| --- | --- | --- | --- |\n",
+        "# Issues\n\nGenerated from `issues.json`; update issues through fourgate.\n\n| ID | Description | Status | Evidence | Code / observations |\n| --- | --- | --- | --- | --- |\n",
     );
     for issue in issues {
         let status = match &issue.status {
@@ -309,12 +435,40 @@ fn render(issues: &[Issue]) -> String {
             })
             .collect::<Vec<_>>()
             .join("<br>");
+        let tracking = issue
+            .flux
+            .as_ref()
+            .map(|flux| {
+                let mut entries = flux
+                    .places
+                    .iter()
+                    .map(|place| {
+                        format!(
+                            "{}:{} ({})",
+                            cell(&place.file.to_string_lossy()),
+                            place.line,
+                            cell(&place.marker)
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                entries.extend(flux.observations.iter().map(|observation| {
+                    format!(
+                        "[{} error {}]({})",
+                        cell(&observation.report.to_string_lossy()),
+                        observation.error_index,
+                        link_path(&observation.report)
+                    )
+                }));
+                entries.join("<br>")
+            })
+            .unwrap_or_default();
         markdown.push_str(&format!(
-            "| {} | {} | {} | {} |\n",
+            "| {} | {} | {} | {} | {} |\n",
             cell(&issue.id),
             cell(&issue.description),
             cell(&status),
-            evidence
+            evidence,
+            tracking
         ));
     }
     markdown

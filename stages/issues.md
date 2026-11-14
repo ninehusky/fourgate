@@ -85,3 +85,111 @@ was saved; use `issues list` to retry. Do not retry filing as a new issue.
 After a killed writer, inspect `issues.json` before resuming. Remove stale
 `.issues.lock` or `*.tmp` files only after confirming no writer is running.
 The ledger is run-local and not a database or a transcript replacement.
+
+## Code-linked Flux issues
+
+The optional `flux` field adds source anchors and references to recorded errors.
+Older generic todos still load and render; to pass the source consistency gate,
+every unresolved issue in this ledger must have at least one source anchor.
+One ledger is scoped to one target checkout, supplied to the gate with `--repo`.
+
+```json
+{
+  "id": "FLUX-017",
+  "description": "Prove packet indexing is in bounds.",
+  "status": "not_started",
+  "evidence": [],
+  "flux": {
+    "places": [{
+      "file": "src/packet.rs",
+      "line": 84,
+      "marker": "packet-bounds",
+      "role": {"kind": "obligation"}
+    }],
+    "observations": [{"report": "check-042/errors.json", "error_index": 0}]
+  }
+}
+```
+
+Place `// fourgate:anchor packet-bounds` immediately before the relevant code or
+its attributes. Tokens match `[a-z0-9]+(-[a-z0-9]+)*` and must be unique throughout
+the checkout. `file` and one-based `line` are navigation hints, not identity;
+the gate searches by marker and reports moved locations without rewriting JSON.
+When moving code, move its marker. Splitting/deleting obligations requires an
+explicit issue update; a missing diagnostic never resolves an issue automatically.
+
+To link an observed error, save the SourceAnchor object above as `anchor.json`:
+
+```sh
+fourgate issues observe --run runs/demo --report check-042/errors.json \
+  --error-index 0 --anchor anchor.json
+# Further occurrences of the same obligation:
+fourgate issues observe --run runs/demo --report check-043/errors.json \
+  --error-index 1 --issue issue-1
+```
+
+The first command allocates an issue and uses the diagnostic message as its
+initial description. Review that description: the parser's Diagnostic kind does
+not establish a real bug or automatically distinguish refinement errors from
+ordinary compiler errors. Related occurrences may share an issue; repeated links
+to the same report entry are deduplicated. Reopening a resolved issue is explicit.
+Reports and their raw logs must remain under the ledger directory and immutable.
+The CLI reparses raw evidence and rejects report contents that disagree with it.
+No `ArtifactRef` or second issue store is introduced.
+
+## Source/trust consistency gate
+
+```sh
+fourgate issues gate --run runs/demo --repo /absolute/target/checkout
+```
+
+This can run in CI before committing target changes. It requires:
+
+- Every unresolved issue has a current, unique source marker with code after it.
+- Every literal Rust trust attribute has one adjacent anchor, an exact
+  `// fourgate:trust ISSUE-ID` backlink, and a matching open exemption entry.
+- Every exemption claimed by an issue has a matching trust in source.
+- Every observation resolves to the same error in retained raw evidence.
+
+For a retained trust, the anchor's role becomes:
+
+```json
+{"kind":"exemption","reason":{"kind":"real_bug","detail":"Confirmed out-of-bounds access; maintainer fix pending."}}
+```
+
+The other accepted reason is `flux_crash`, with a nonempty explanation and a
+linked recorded ICE/panic occurrence. `real_bug` requires supporting evidence and
+human/agent confirmation; a failed proof alone is insufficient. Source placement:
+
+```rust
+// fourgate:anchor packet-bounds
+// fourgate:trust FLUX-017
+#[flux::trusted]
+fn decode() { /* ... */ }
+```
+
+If an annotation has a literal `reason` argument, its category must be `real_bug`
+for RealBug or `panic` for FluxCrash. Explicit `trusted(no)`/`ignore(no)` annotations are not exemptions.
+The gate does not require a reason argument:
+use the actual syntax supported by the target verifier, with the explanation in
+the issue. Resolving an issue requires removing its exemption entry as well as
+its annotation/backlink; resolved obligations may retain historical locations.
+
+Temporary trusts used to collect errors are **not** accepted retained exemptions.
+Save them as an experiment patch, then remove them before the commit gate. No
+DeferredProof reason exists. The gate is opt-in and does not install a Git hook.
+
+Scope: Git-listed tracked and nonignored untracked `.rs` files under the Git
+checkout root passed as `--repo` (unstaged deletions are omitted),
+including literal `cfg_attr` branches and attributes written inside macro token
+trees. It does not expand macros, enumerate ignored/generated Rust, inspect
+external dependencies, Git submodules/nested repositories, or establish
+compilation/body coverage. Listed nested directories are reported as not scanned.
+Known `ignore`/`proven_externally` Flux attributes and
+`include-trusted`/`include_trusted`, `default-trusted`/`default_trusted`, and
+`default-ignore`/`default_ignore` TOML settings are rejected as
+unsupported when enabled/nonempty rather than accepted as accounted exemptions.
+The gate parses `flux.toml` and `[package.metadata.flux]` in `Cargo.toml`; comments,
+false defaults, empty selectors, and unrelated metadata are accepted. Other
+checking flags and build configurations remain part of run provenance, outside
+this source gate.

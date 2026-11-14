@@ -36,7 +36,9 @@ does not discard that work. Supply the target and checker setup if they are not 
 
 `fourgate issues file|update|list --run runs/NAME` manages the run's typed todo
 ledger and generates its `ISSUES.md` table. See [ledger commands and JSON input](stages/issues.md).
-The schema lives in `src/issues.rs`; parser errors stay independent of these todos.
+The schema lives in `src/issues.rs` and `src/flux_issue.rs`; parser errors stay independent
+of these todos. `issues observe` links recorded errors to stable issues; `issues gate`
+checks source/trust bookkeeping. See [the inventory workflow](stages/inventory-flux-errors.md).
 Keep repair attempts, patches, the repeatable command, native agent transcript,
 and available token/time measurements together in `runs/NAME/` (ignored by Git).
 
